@@ -115,9 +115,20 @@ class Model(pl.LightningModule):
         lstm_out = lstm_out.contiguous().view(-1, self.hidden_size)
 
         out = torch.relu(self.linear(lstm_out))
+        out = torch.sigmoid(out)
         return out, hidden
 
+    def init_hidden(self, batch_size):
+        weight = next(self.parameters()).data
+        hidden = (
+            weight.new(self.num_layers * 2, batch_size, self.hidden_size).zero_(),
+            weight.new(self.num_layers * 2, batch_size, self.hidden_size).zero_(),
+        )
+        return hidden
+
     def training_step(self, batch, batch_idx):
+        x, y = batch
+        # out =
         return
 
     def configure_optimizers(self):
