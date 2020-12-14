@@ -9,9 +9,9 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from torch.utils.data import DataLoader, TensorDataset
 
 
-def dict2obj(d):
+def dict_to_obj(d):
     if isinstance(d, list):
-        d = [dict2obj(x) for x in d]
+        d = [dict_to_obj(x) for x in d]
     if not isinstance(d, dict):
         return d
 
@@ -20,8 +20,14 @@ def dict2obj(d):
 
     obj = Class()
     for k in d:
-        obj.__dict__[k] = dict2obj(d[k])
+        obj.__dict__[k] = dict_to_obj(d[k])
     return obj
+
+
+def binary_acc(pred, y):
+    rounded_pred = torch.round(pred)
+    correct = (rounded_pred == y).float()
+    return correct.sum() / len(correct)
 
 
 class DataModule:
@@ -144,6 +150,7 @@ class Model(nn.Module):
         return hidden
 
 
+# Define configuration
 config = {
     "num_embeddings:": 10000,
     "embedding_dim": 10,
@@ -154,5 +161,105 @@ config = {
     "output_size": 1,
     "batch_size": 64,
 }
+config = dict_to_obj(config)
 
+# Create data module and prepare data
 data_module = DataModule(config)
+data_module.prepare_data()
+
+# Make data loaders for each split
+train_loader = data_module.train_dataloader()
+val_loader = data_module.val_dataloader()
+test_loader = data_module.test_dataloader()
+
+# Create model
+model = Model(config)
+model.cuda()
+
+# Create optimizer
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+# Create criterion
+criterion = nn.BCELoss()
+
+# Define other training parameters
+epochs = 10
+print_interval = 1000
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model.train()
+for epoch in range(epochs):
+    h = model.init_hidden(config.batch_size)
+    train_losses = []
+    train_accs = []
+    for batch_idx, batch in enumerate(train_loader):
+        x, y = batch
+        x, y = x.cuda(), y.cuda()
+        h = tuple([i.data for i in h])
+
+        for p in model.parameters():
+            p.grad = None  # Equivalent to model.zero_grad() but better
+
+        output, h = model(x, h)
+        acc = binary_acc(output, y.float())
+        loss = criterion(output, y.float())
+
+        train_accs.append(acc.item())
+        train_losses.append(loss.item())
+
+        loss.backward()
+        optimizer.step()
+
+        if batch_idx % print_interval == 0 or batch_idx == len(train_loader):
+            model.eval()
+            with torch.no_grad():
+                val_h = model.init_hidden(config.batch_size)
+                val_losses = []
+                val_accs = []
+                for batch in val_loader:
+                    x, y = batch
+                    x, y = x.cuda(), y.cuda()
+                    val_h = tuple([i.data for i in val_h])
+
+                    output, val_h = model(x, val_h)
+
+                    val_acc = binary_acc(output, y.float())
+                    val_loss = criterion(output, y.float())
+
+                    val_accs.append(val_acc.item())
+                    val_losses.append(val_loss.item())
+
+            model.train()
+            print(
+                "Epoch: {}/{}".format(epoch, epochs),
+                "Step: {}".format(batch_idx),
+                "Train loss: {}".format(np.mean(train_losses.item())),
+                "Train acc: {}".format(np.mean(train_accs.item())),
+                "Val loss: {}".format(np.mean(val_losses.item())),
+                "Val acc: {}".format(np.mean(val_accs.item())),
+            )
+
+
+test_losses = []
+test_accs = []
+test_h = model.init_hidden(config.batch_size)
+
+model.eval()
+with torch.no_grad():
+    for batch in test_loader:
+        x, y = batch
+        x, y = x.cuda(), y.cuda()
+        test_h = tuple([i.data for i in test_h])
+
+        output, test_h = model(x, test_h)
+
+        test_acc = binary_acc(output, y.float())
+        test_loss = criterion(output, y.float())
+
+        test_accs.append(test_acc.item())
+        test_losses.append(test_losses.item())
+
+print(
+    "Test loss: {}".format(np.mean(test_losses)),
+    "Test acc: {}".format(np.mean(test_accs)),
+)
