@@ -1,21 +1,38 @@
 import numpy as np
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import torch.functional as F
 import torch.optim as optim
 from datasets import load_dataset
-from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.preprocessing.text import Tokenizer
 from torch.utils.data import DataLoader, TensorDataset
 
 
-class DataModule(pl.LightningDataModule):
-    def __init__(self, batch_size):
-        super().__init__()
-        self.batch_size = batch_size
+def dict2obj(d):
+    if isinstance(d, list):
+        d = [dict2obj(x) for x in d]
+    if not isinstance(d, dict):
+        return d
 
-    def setup(self, stage=None):
+    class Class:
+        pass
+
+    obj = Class()
+    for k in d:
+        obj.__dict__[k] = dict2obj(d[k])
+    return obj
+
+
+class DataModule:
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.batch_size = config.batch_size
+        self.num_embeddings = config.num_embeddings
+        self.seq_len = config.seq_len
+
+    def prepare_data(self):
         # Download imdb dataset
         train_full = load_dataset("imdb", split="train").train_test_split(test_size=0.2)
         train = train_full["train"]
@@ -31,25 +48,25 @@ class DataModule(pl.LightningDataModule):
         test_label = np.array([i["label"] for i in test])
 
         # Make tokenizer
-        tokenizer = Tokenizer(num_words=10000, oov_token="<OOV>")
+        tokenizer = Tokenizer(num_words=self.num_embeddings, oov_token="<OOV>")
         tokenizer.fit_on_texts(train_full["train"]["text"] + train_full["test"]["text"])
 
         # Convert text to integer sequences and pad sequences to the same length
         train_text = pad_sequences(
             tokenizer.texts_to_sequences(train_text),
-            maxlen=512,
+            maxlen=self.seq_len,
             truncating="post",
             padding="post",
         )
         val_text = pad_sequences(
             tokenizer.texts_to_sequences(val_text),
-            maxlen=512,
+            maxlen=self.seq_len,
             truncating="post",
             padding="post",
         )
         test_text = pad_sequences(
             tokenizer.texts_to_sequences(test_text),
-            maxlen=512,
+            maxlen=self.seq_len,
             truncating="post",
             padding="post",
         )
@@ -80,7 +97,7 @@ class DataModule(pl.LightningDataModule):
         )
 
 
-class Model(pl.LightningModule):
+class Model(nn.Module):
     def __init__(self, config):
         self.config = config
         self.num_embeddings = config.num_embeddings
@@ -126,10 +143,16 @@ class Model(pl.LightningModule):
         )
         return hidden
 
-    def training_step(self, batch, batch_idx):
-        x, y = batch
-        # out =
-        return
 
-    def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3)
+config = {
+    "num_embeddings:": 10000,
+    "embedding_dim": 10,
+    "hidden_size": 64,
+    "seq_len": 512,
+    "num_layers": 1,
+    "bidirectional": True,
+    "output_size": 1,
+    "batch_size": 64,
+}
+
+data_module = DataModule(config)
