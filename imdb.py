@@ -46,19 +46,19 @@ class DataModule:
             tokenizer.texts_to_sequences(train_text),
             maxlen=self.sequence_length,
             truncating="post",
-            padding="post",
+            padding="pre",
         )
         val_text = pad_sequences(
             tokenizer.texts_to_sequences(val_text),
             maxlen=self.sequence_length,
             truncating="post",
-            padding="post",
+            padding="pre",
         )
         test_text = pad_sequences(
             tokenizer.texts_to_sequences(test_text),
             maxlen=self.sequence_length,
             truncating="post",
-            padding="post",
+            padding="pre",
         )
 
         # Convert numpy arrays to tensors
@@ -130,10 +130,8 @@ class Model(nn.Module):
             bidirectional=config.bidirectional,
             batch_first=True,
         )
-        # if config.bidirectional:
-        #     self.linear = nn.Linear(config.hidden_size * 2, config.output_size)
-        # else:
-        self.linear = nn.Linear(1, config.output_size)
+
+        self.linear = nn.Linear(config.hidden_size * 2, config.output_size)
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -163,10 +161,10 @@ class Model(nn.Module):
         lstm_out = torch.cat((lstm_out_backward, lstm_out_forward), dim=1)
 
         # (batch_size, 1)
-        pooled = self.pooling(lstm_out)
+        # pooled = self.pooling(lstm_out)
 
         # (batch_size, 1)
-        out = torch.relu(self.linear(pooled))
+        out = torch.relu(self.linear(lstm_out))
         out = torch.squeeze(torch.sigmoid(out))
         return out
 
@@ -224,44 +222,40 @@ criterion = nn.BCELoss()
 epochs = 10
 print_interval = 100
 
-model.train()
-for epoch in range(epochs):
+
+def eval_step(model, eval_loader, device):
+    eval_losses = []
+    eval_accs = []
+    model.eval()
+    with torch.no_grad():
+        for batch in eval_loader:
+            x, y = batch
+            x, y = x.to(device), y.to(device)
+            output = model(x)
+            eval_loss = criterion(output, y.float())
+            eval_acc = binary_acc(output, y.float())
+            eval_losses.append(eval_loss.item())
+            eval_accs.append(eval_acc.item())
+    return (eval_losses, eval_accs)
+
+
+def training_step(model, train_loader, val_loader, device, print_interval):
     train_losses = []
     train_accs = []
     for batch_idx, batch in enumerate(train_loader):
         x, y = batch
         x, y = x.to(device), y.to(device)
-
-        for p in model.parameters():
-            p.grad = None  # Equivalent to model.zero_grad() but better
-
+        model.zero_grad()
         output = model(x)
-        acc = binary_acc(output, y.float())
         loss = criterion(output, y.float())
-
-        train_accs.append(acc.item())
+        acc = binary_acc(output, y.float())
         train_losses.append(loss.item())
-
+        train_accs.append(acc.item())
         loss.backward()
         optimizer.step()
 
         if batch_idx % print_interval == 0 or batch_idx == len(train_loader) - 1:
-            model.eval()
-            with torch.no_grad():
-                val_losses = []
-                val_accs = []
-                for batch in val_loader:
-                    x, y = batch
-                    x, y = x.to(device), y.to(device)
-
-                    output = model(x)
-
-                    val_acc = binary_acc(output, y.float())
-                    val_loss = criterion(output, y.float())
-
-                    val_accs.append(val_acc.item())
-                    val_losses.append(val_loss.item())
-
+            val_losses, val_accs = eval_step(model, val_loader, device)
             model.train()
             print(
                 "Epoch: {}/{}".format(epoch, epochs),
@@ -273,22 +267,13 @@ for epoch in range(epochs):
             )
     print()
 
-test_losses = []
-test_accs = []
 
-model.eval()
-with torch.no_grad():
-    for batch in test_loader:
-        x, y = batch
-        x, y = x.to(device), y.to(device)
+for epoch in range(epochs):
+    training_step(model, train_loader, val_loader, device, print_interval)
 
-        output = model(x)
 
-        test_acc = binary_acc(output, y.float())
-        test_loss = criterion(output, y.float())
+test_losses, test_accs = eval_step(model, test_loader, device)
 
-        test_accs.append(test_acc.item())
-        test_losses.append(test_losses.item())
 
 print(
     "Test loss: {}".format(round(np.mean(test_losses), 4)),
