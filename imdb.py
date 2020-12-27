@@ -77,7 +77,6 @@ class DataModule:
             batch_size=self.batch_size,
             num_workers=2,
             pin_memory=True,
-            drop_last=True,
         )
 
     def val_dataloader(self):
@@ -86,7 +85,6 @@ class DataModule:
             batch_size=self.batch_size,
             num_workers=2,
             pin_memory=True,
-            drop_last=True,
         )
 
     def test_dataloader(self):
@@ -95,8 +93,17 @@ class DataModule:
             batch_size=self.batch_size,
             num_workers=2,
             pin_memory=True,
-            drop_last=True,
         )
+
+
+class GlobalMaxPooling1D(torch.nn.Module):
+    def __init__(self, data_format="channels_last"):
+        super().__init__()
+        self.data_format = data_format
+        self.step_axis = 1 if self.data_format == "channels_last" else 2
+
+    def forward(self, input):
+        return torch.unsqueeze(torch.max(input, axis=self.step_axis).values, 1)
 
 
 class Model(nn.Module):
@@ -112,6 +119,7 @@ class Model(nn.Module):
         self.output_size = config.output_size
         self.device = config.device
 
+        self.pooling = GlobalMaxPooling1D()
         self.embedding = nn.Embedding(
             num_embeddings=config.num_embeddings, embedding_dim=config.embedding_dim
         )
@@ -122,12 +130,15 @@ class Model(nn.Module):
             bidirectional=config.bidirectional,
             batch_first=True,
         )
-        if config.bidirectional:
-            self.linear = nn.Linear(config.hidden_size * 2, config.output_size)
-        else:
-            self.linear = nn.Linear(config.hidden_size, config.output_size)
+        # if config.bidirectional:
+        #     self.linear = nn.Linear(config.hidden_size * 2, config.output_size)
+        # else:
+        self.linear = nn.Linear(1, config.output_size)
 
-    def forward(self, x, hidden):
+    def forward(self, x):
+        batch_size = x.size(0)
+        hidden = self.init_hidden(batch_size)
+
         # (batch_size, sequence_length)
         x = x.long()
 
@@ -148,12 +159,16 @@ class Model(nn.Module):
         # (batch_size, num_directions * hidden_size / 2)
         lstm_out_forward = lstm_out[:, -1, 0, :]
 
+        # (batch_size, num_directions * hidden_size)
         lstm_out = torch.cat((lstm_out_backward, lstm_out_forward), dim=1)
-        # lstm_out = lstm_out.contiguous().view(-1, self.hidden_size)
 
-        out = torch.relu(self.linear(lstm_out))
-        out = torch.sigmoid(out)
-        return out, hidden
+        # (batch_size, 1)
+        pooled = self.pooling(lstm_out)
+
+        # (batch_size, 1)
+        out = torch.relu(self.linear(pooled))
+        out = torch.squeeze(torch.sigmoid(out))
+        return out
 
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
@@ -211,19 +226,16 @@ print_interval = 100
 
 model.train()
 for epoch in range(epochs):
-    h = model.init_hidden(config.batch_size)
     train_losses = []
     train_accs = []
     for batch_idx, batch in enumerate(train_loader):
         x, y = batch
-        y = y.unsqueeze(1)
         x, y = x.to(device), y.to(device)
-        h = tuple([i.data for i in h])
 
         for p in model.parameters():
             p.grad = None  # Equivalent to model.zero_grad() but better
 
-        output, h = model(x, h)
+        output = model(x)
         acc = binary_acc(output, y.float())
         loss = criterion(output, y.float())
 
@@ -233,19 +245,16 @@ for epoch in range(epochs):
         loss.backward()
         optimizer.step()
 
-        if batch_idx % print_interval == 0 or batch_idx == len(train_loader):
+        if batch_idx % print_interval == 0 or batch_idx == len(train_loader) - 1:
             model.eval()
             with torch.no_grad():
-                val_h = model.init_hidden(config.batch_size)
                 val_losses = []
                 val_accs = []
                 for batch in val_loader:
                     x, y = batch
-                    y = y.unsqueeze(1)
                     x, y = x.to(device), y.to(device)
-                    val_h = tuple([i.data for i in val_h])
 
-                    output, val_h = model(x, val_h)
+                    output = model(x)
 
                     val_acc = binary_acc(output, y.float())
                     val_loss = criterion(output, y.float())
@@ -257,24 +266,23 @@ for epoch in range(epochs):
             print(
                 "Epoch: {}/{}".format(epoch, epochs),
                 "Step: {}".format(batch_idx),
-                "Train loss: {}".format(np.mean(train_losses)),
-                "Train acc: {}".format(np.mean(train_accs)),
-                "Val loss: {}".format(np.mean(val_losses)),
-                "Val acc: {}".format(np.mean(val_accs)),
+                "Train loss: {}".format(round(np.mean(train_losses), 4)),
+                "Train acc: {}".format(round(np.mean(train_accs), 4)),
+                "Val loss: {}".format(round(np.mean(val_losses), 4)),
+                "Val acc: {}".format(round(np.mean(val_accs), 4)),
             )
+    print()
 
 test_losses = []
 test_accs = []
-test_h = model.init_hidden(config.batch_size)
 
 model.eval()
 with torch.no_grad():
     for batch in test_loader:
         x, y = batch
         x, y = x.to(device), y.to(device)
-        test_h = tuple([i.data for i in test_h])
 
-        output, test_h = model(x, test_h)
+        output = model(x)
 
         test_acc = binary_acc(output, y.float())
         test_loss = criterion(output, y.float())
@@ -283,6 +291,6 @@ with torch.no_grad():
         test_losses.append(test_losses.item())
 
 print(
-    "Test loss: {}".format(np.mean(test_losses)),
-    "Test acc: {}".format(np.mean(test_accs)),
+    "Test loss: {}".format(round(np.mean(test_losses), 4)),
+    "Test acc: {}".format(round(np.mean(test_accs), 4)),
 )
