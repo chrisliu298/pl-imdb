@@ -55,7 +55,7 @@ class BaseModel(pl.LightningModule):
         print(f"Average test accuracy: {avg_acc}")
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=self.learning_rate)
+        return optim.Adam(self.parameters(), lr=1e-3)
 
 
 class BiLSTM(BaseModel):
@@ -146,5 +146,5 @@ class FCNN(BaseModel):
         # (batch_size, hidden_size)
         linear_mid_out = torch.relu(self.linear_mid(flattened))
         # (batch_size, output_size)
-        out = torch.sigmoid(self.linear_out(linear_mid_out))
+        out = torch.squeeze(torch.sigmoid(self.linear_out(linear_mid_out)))
         return out

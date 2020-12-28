@@ -4,7 +4,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from data import DataModule
-from model import BiLSTM, FCNN
+from model import FCNN, BiLSTM
 
 
 def binary_accuracy(pred, y):
