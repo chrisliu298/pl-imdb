@@ -48,12 +48,6 @@ class BaseModel(pl.LightningModule):
         acc = binary_accuracy(output, y.float())
         return {"test_loss": loss, "test_acc": acc}
 
-    def test_epoch_end(self, outputs):
-        avg_loss = torch.stack([i["test_loss"] for i in outputs]).mean()
-        avg_acc = torch.stack([i["test_acc"] for i in outputs]).mean()
-        print(f"Average test loss: {avg_loss}")
-        print(f"Average test accuracy: {avg_acc}")
-
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=1e-3)
 
