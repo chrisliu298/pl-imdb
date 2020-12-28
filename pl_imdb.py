@@ -13,7 +13,7 @@ def binary_accuracy(pred, y):
     return correct.sum() / len(correct)
 
 
-datamodule = DataModule()
+datamodule = DataModule("imdb_train.tsv", "imdb_test.tsv")
 datamodule.prepare_data()
 train_dataloader = datamodule.train_dataloader()
 val_dataloader = datamodule.val_dataloader()

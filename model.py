@@ -3,8 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from pytorch_lightning.metrics.functional.classification import accuracy
 
-from utils import binary_accuracy
+# from utils import binary_accuracy
 
 
 class BaseModel(pl.LightningModule):
@@ -15,7 +16,7 @@ class BaseModel(pl.LightningModule):
         x, y = batch
         output = self(x)
         loss = F.binary_cross_entropy(output, y.float())
-        acc = binary_accuracy(output, y.float())
+        acc = accuracy(torch.round(output), y.float())
         self.log("train_loss", loss, logger=True)
         self.log("train_acc", acc, logger=True)
         return {"loss": loss, "train_acc": acc}
@@ -30,7 +31,7 @@ class BaseModel(pl.LightningModule):
         x, y = batch
         output = self(x)
         loss = F.binary_cross_entropy(output, y.float())
-        acc = binary_accuracy(output, y.float())
+        acc = accuracy(torch.round(output), y.float())
         self.log("val_loss", loss, logger=True)
         self.log("val_acc", acc, logger=True)
         return {"val_loss": loss, "val_acc": acc}
@@ -45,7 +46,7 @@ class BaseModel(pl.LightningModule):
         x, y = batch
         output = self(x)
         loss = F.binary_cross_entropy(output, y.float())
-        acc = binary_accuracy(output, y.float())
+        acc = accuracy(torch.round(output), y.float())
         return {"test_loss": loss, "test_acc": acc}
 
     def configure_optimizers(self):
