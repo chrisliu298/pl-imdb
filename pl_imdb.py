@@ -23,7 +23,7 @@ early_stop_callback = EarlyStopping(
     monitor="val_acc", patience=10, verbose=True, mode="max"
 )
 logger = TensorBoardLogger("tb_logs", name="model")
-model = FCNN()
+model = FCNN()  # BiLSTM
 trainer = Trainer(
     gpus=1, progress_bar_refresh_rate=50, callbacks=[early_stop_callback], logger=logger
 )
