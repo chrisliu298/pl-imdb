@@ -144,33 +144,24 @@ class Model(pl.LightningModule):
     def forward(self, x):
         batch_size = x.size(0)
         hidden = self.init_hidden(batch_size)
-
         # (batch_size, sequence_length)
         x = x.long()
-
         # (batch_size, sequence_length, embedding_dim)
         embedded = self.embedding(x)
-
         # (batch_size, sequence_length, num_directions * hidden_size)
         lstm_out, hidden = self.lstm(embedded, hidden)
-
         # (batch_size, sequence_length, num_directions, hidden_size)
         lstm_out = lstm_out.contiguous().view(
             -1, self.sequence_length, 2, self.hidden_size
         )
-
         # (batch_size, num_directions * hidden_size / 2)
         lstm_out_backward = lstm_out[:, 0, 1, :]
-
         # (batch_size, num_directions * hidden_size / 2)
         lstm_out_forward = lstm_out[:, -1, 0, :]
-
         # (batch_size, num_directions * hidden_size)
         lstm_out = torch.cat((lstm_out_backward, lstm_out_forward), dim=1)
-
         # (batch_size, 1)
         # pooled = self.pooling(lstm_out)
-
         # (batch_size, 1)
         out = torch.relu(self.linear(lstm_out))
         out = torch.squeeze(torch.sigmoid(out))
