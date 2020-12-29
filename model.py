@@ -5,8 +5,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from pytorch_lightning.metrics.functional.classification import accuracy
 
-# from utils import binary_accuracy
-
 
 class BaseModel(pl.LightningModule):
     def __init__(self):
