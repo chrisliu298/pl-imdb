@@ -1,1 +1,1 @@
-# pytorch_projects
+# PyTorch Lightning IMDb Sentiment Analysis
