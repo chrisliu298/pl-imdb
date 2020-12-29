@@ -116,8 +116,12 @@ class BiLSTM(BaseModel):
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
         hidden = (
-            weight.new(self.num_layers * 2, batch_size, self.hidden_size).zero_(),
-            weight.new(self.num_layers * 2, batch_size, self.hidden_size).zero_(),
+            weight.new(
+                self.num_layers * 2, batch_size, self.hidden_size
+            ).zero_(),
+            weight.new(
+                self.num_layers * 2, batch_size, self.hidden_size
+            ).zero_(),
         )
         return hidden
 
@@ -136,7 +140,9 @@ class FCNN(BaseModel):
             num_embeddings=num_embeddings, embedding_dim=embedding_dim
         )
         self.flatten = nn.Flatten()
-        self.linear_mid = nn.Linear(sequence_length * embedding_dim, hidden_size)
+        self.linear_mid = nn.Linear(
+            sequence_length * embedding_dim, hidden_size
+        )
         self.linear_out = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):

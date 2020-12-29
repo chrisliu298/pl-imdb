@@ -24,7 +24,9 @@ class DataModule(pl.LightningDataModule):
         self.sequence_length = sequence_length
         self.num_dataloader_workers = num_dataloader_workers
         self.tokenizer = Tokenizer(num_words=num_embeddings, oov_token="<OOV>")
-        self.tokenizer.fit_on_texts(pd.read_csv(train_file, delimiter="\t")["text"])
+        self.tokenizer.fit_on_texts(
+            pd.read_csv(train_file, delimiter="\t")["text"]
+        )
 
     def prepare_data(self):
         # Download imdb dataset
@@ -43,7 +45,9 @@ class DataModule(pl.LightningDataModule):
         test_text = self.tokenize(test_text)
 
         # Convert numpy arrays to tensors
-        train_text, train_label = map(torch.from_numpy, [train_text, train_label])
+        train_text, train_label = map(
+            torch.from_numpy, [train_text, train_label]
+        )
         val_text, val_label = map(torch.from_numpy, [val_text, val_label])
         test_text, test_label = map(torch.from_numpy, [test_text, test_label])
 
