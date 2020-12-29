@@ -24,8 +24,12 @@ class BaseModel(pl.LightningModule):
     def training_epoch_end(self, outputs):
         avg_loss = torch.stack([i["loss"] for i in outputs]).mean()
         avg_acc = torch.stack([i["train_acc"] for i in outputs]).mean()
-        print(f"Epoch {self.current_epoch} average training loss: {avg_loss}")
-        print(f"Epoch {self.current_epoch} average training accuracy: {avg_acc}\n")
+        print(
+            "---\nEpoch {} average training loss: {:12.4f}\n"
+            "Epoch {} average training accuracy: {:8.4f}\n---".format(
+                self.current_epoch, avg_loss, self.current_epoch, avg_acc
+            )
+        )
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -39,8 +43,12 @@ class BaseModel(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([i["val_loss"] for i in outputs]).mean()
         avg_acc = torch.stack([i["val_acc"] for i in outputs]).mean()
-        print(f"Epoch {self.current_epoch} average validation loss: {avg_loss}")
-        print(f"Epoch {self.current_epoch} average validation accuracy: {avg_acc}")
+        print(
+            "---\nEpoch {} average validation loss: {:10.4f}\n"
+            "Epoch {} average validation accuracy: {:6.4f}\n---".format(
+                self.current_epoch, avg_loss, self.current_epoch, avg_acc
+            )
+        )
 
     def test_step(self, batch, batch_idx):
         x, y = batch
